@@ -1,0 +1,188 @@
+from datetime import datetime, timedelta
+
+def generate_queries():
+    sql_query = "INSERT INTO auditframework.batch_schdlng_dtl (batch_nm_id, application_cd, reporting_dt, batch_run_ind, create_by_ts, create_by_nm, last_upd_by_ts, last_upd_by_nm, as_on_dt,month_end_ind)       VALUES((select batch_nm_id from auditframework.batch_dtl where batch_nm='{0}'), 'CDM', '{1}', 'Y', convert_timezone('EST',getdate()), current_user, '{2}', '{3}');"
+    date_value = input("Enter date value : ")
+    date_value = date_value.strip()
+    date_value =  int(date_value)
+    start_time = input("Enter start time in this format -> ( DD-MM-YYYY ) : ")
+    start_time = start_time.strip()
+    end_time = input("Enter end time in this format -> ( DD-MM-YYYY ) : ")
+    end_time = end_time.strip()
+    batch_nm = input("Enter batch_nm : ")
+    batch_nm = batch_nm.strip()
+    other_option = 0
+    if date_value == 0:
+        other_option = input("Enter other option (valid only for date_value 0 ) provide one of the following -> tue_to_sat or  mon_to_sat or sun_to_sat or thu_to_sat or  mon_to_wed or wed_to_fri or thu_fri_mon: ")
+        other_option = other_option.strip()
+
+
+    if start_time and end_time:
+        # mm/dd/yy ... 23-04-2022 -> start_date
+        # end_time -> 03-08-2022 -> end_date
+        # start_time = start_time.strftime("%d/%m/%Y")
+        start_time_obj = datetime.strptime(start_time, "%d-%m-%Y")
+        end_time_obj = datetime.strptime(end_time, "%d-%m-%Y")
+
+        diff_days = end_time_obj - start_time_obj
+        total_days_to_fetch = int(round(diff_days.total_seconds()/86400, 1))
+        month_end_mapping = []
+        months_data = []
+        dates_info = []
+        dates_info_str = []
+        queries = []
+
+        days_map = {
+            'Sunday' : 0,
+            'Monday' : 1,
+            'Tuesday' : 2,
+            'Wednesday' : 3,
+            'Thursday' : 4,
+            'Friday' : 5,
+            'Saturday' : 6
+        }
+
+        other_options = [
+            ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            ['Thursday', 'Friday', 'Saturday'],
+            ['Monday', 'Tuesday', 'Wednesday'],
+            ['Wednesday', 'Thursday', 'Friday'],
+            ['Thursday', 'Friday','Monday']
+            
+        ]
+        other_options_dict = {
+            "tue_to_sat" : 0,
+            "mon_to_sat" : 1,
+            "sun_to_sat" : 2,
+            "thu_to_sat" : 3,
+            "mon_to_wed" : 4,
+            "wed_to_fri" : 5,
+            "thu_fri_mon" : 6
+        }
+        date_value_map = {
+            -1 : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            -2 : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+            -3 : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Saturday']
+        }
+
+        if date_value == 0:
+            if total_days_to_fetch > 0:
+                if other_option is not None and (other_option in other_options_dict):
+                    other_option_id = other_options_dict.get(other_option)
+                    count = 0
+                    curr_date = start_time_obj
+                    while(count<total_days_to_fetch):
+                        if count:
+                            curr_date = curr_date + timedelta(days = 1)
+                        day_info = curr_date.strftime("%A")
+                        days_flag = 0
+                        if not months_data:
+                            start_day_count = days_map.get(day_info)
+                            days_flag = 6 - start_day_count
+                            if days_flag<0:
+                                days_flag = days_flag*-1
+
+                        if (day_info in other_options[other_option_id]) or len(months_data)<=days_flag:
+                            curr_date_str_info = curr_date.strftime("%Y-%m-%d")
+                            dates_info.append(curr_date_str_info)
+                            date_in_str = curr_date.strftime("%Y%m%d") + '000000'
+                            dates_info_str.append(date_in_str)
+                            try:
+                                prev_month = months_data[-1]
+                                idx = len(month_end_mapping)-1
+                                curr_month = int(curr_date.strftime("%m"))
+                                months_data.append(curr_month)
+                                if curr_month != prev_month:
+                                    month_end_mapping[idx] = 'Y'
+                                month_end_mapping.append('N')
+                            except:
+                                curr_month = int(curr_date.strftime("%m"))
+                                months_data.append(curr_month)
+                                month_end_mapping.append('N')
+                                pass
+
+                        count += 1
+
+        elif date_value in [-1, -2, -3]:
+            start_time_obj = datetime.strptime(start_time, "%d-%m-%Y")
+            start_time_obj = start_time_obj-timedelta(days = date_value*-1)
+            end_time_obj = datetime.strptime(end_time, "%d-%m-%Y")
+
+            diff_days = end_time_obj - start_time_obj
+            total_days_to_fetch = int(round(diff_days.total_seconds() / 86400, 1))
+            if total_days_to_fetch > 0 and (date_value_map.get(date_value)):
+                days_check = date_value_map.get(date_value)
+                count = 0
+                curr_date = start_time_obj
+                while (count < total_days_to_fetch):
+                    if count:
+                        curr_date = curr_date + timedelta(days=1)
+                    day_info = curr_date.strftime("%A")
+                    days_flag = 0
+                    if date_value == -1:
+                        if not months_data:
+                            start_day_count = days_map.get(day_info)
+                            days_flag = 5 - start_day_count
+                            if days_flag<0:
+                                days_flag = days_flag*-1
+                    elif date_value == -2:
+                        if not months_data:
+                            start_day_count = days_map.get(day_info)
+                            days_flag = 4 - start_day_count
+                            if days_flag<0:
+                                days_flag = days_flag*-1
+                    elif date_value == -3:
+                        if not months_data:
+                            start_day_count = days_map.get(day_info)
+                            days_flag = 6 - start_day_count
+                            if days_flag<0:
+                                days_flag = days_flag*-1
+                    if day_info in days_check or len(months_data)<=days_flag:
+                        curr_date_str_info = curr_date.strftime("%Y-%m-%d")
+                        dates_info.append(curr_date_str_info)
+                        date_in_str = curr_date.strftime("%Y%m%d") + '000000'
+                        dates_info_str.append(date_in_str)
+                        try:
+                            prev_month = months_data[-1]
+                            idx = len(month_end_mapping) - 1
+                            curr_month = int(curr_date.strftime("%m"))
+                            months_data.append(curr_month)
+                            if curr_month != prev_month:
+                                month_end_mapping[idx] = 'Y'
+                            month_end_mapping.append('N')
+                        except:
+                            curr_month = int(curr_date.strftime("%m"))
+                            months_data.append(curr_month)
+                            month_end_mapping.append('N')
+                            pass
+
+                    count += 1
+
+        else:
+            print("Not a valid Date value !!!")
+
+
+        for i in range(len(month_end_mapping)):
+            query = sql_query.format(batch_nm, dates_info[i], dates_info_str[i], month_end_mapping[i])
+            queries.append(query)
+
+        for qry in queries:
+            print(qry)
+        #print(dates_info)
+        #print(len(queries))
+        #print(total_days_to_fetch)
+
+        # writing to csv file
+
+        if len(queries):
+            file_name = "queries.txt"
+            f = open(file_name, 'w')
+            for qry in queries:
+                f.write(qry+"\n")
+            f.close()
+
+    else:
+        return None
+generate_queries()
